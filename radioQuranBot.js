@@ -131,4 +131,4 @@ bot.on('message', async (msg) => {
 
 
 
-console.log('bot starting ...');
+console.log('Assalamu alaykum...');

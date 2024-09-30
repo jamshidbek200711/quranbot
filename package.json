@@ -4,7 +4,8 @@
   "description": "",
   "main": "radioQuranBot.js",
   "scripts": {
-    "start": "node ./radioQuranBot.js"
+    "start": "node ./radioQuranBot.js",
+    "dev": "nodemon ./radioQuranBot.js"
   },
   "keywords": [],
   "author": "",

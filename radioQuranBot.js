@@ -1,6 +1,9 @@
 const TelegramBot = require('node-telegram-bot-api');
 const fs = require('fs');
 const axios = require('axios');
+const path = require('path');
+const adminID = 5302582529
+
 require('dotenv').config();
 const token = process.env.token;
 const bot = new TelegramBot(token, { polling: true });
@@ -94,7 +97,7 @@ async function fetchQuranData(surah, ayah = null) {
 // Handle surah or ayah request
 bot.on('message', async (msg) => {
     const chatId = msg.chat.id;
-    const text = msg.text.trim();
+    const text = msg.text && typeof msg.text === 'string' ? msg.text.trim() : '';
 
     // Check if the message is a surah or ayah request (e.g., "2", "2:255")
     const surahAyahPattern = /^(\d+)(?::(\d+))?$/;  // Matches "n" or "n:m"
@@ -128,7 +131,131 @@ bot.on('message', async (msg) => {
 });
 
 
+//-----------------------------------------------------------------ADMIN--------------------------------------------------------------------------------
+
+const usersFile = './users.json';
+
+// Load or create the users list
+let users = [];
+if (fs.existsSync(usersFile)) {
+    users = JSON.parse(fs.readFileSync(usersFile, 'utf8'));
+}
+
+// Save users list to file
+function saveUsers() {
+    fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+}
+
+// Track admin's step in sending process
+let sendStep = null;
+
+// Listen for any message to add the user ID to the list
+bot.on('message', (msg) => {
+    const chatId = msg.chat.id;
+    if (!users.includes(chatId)) {
+        users.push(chatId);
+        saveUsers();
+    }
+
+    // Process messages based on the current step
+    if (sendStep === 'text' && chatId === adminID) {
+        users.forEach(userId => bot.sendMessage(userId, msg.text).catch(console.error));
+        bot.sendMessage(chatId, 'Text foydalanuvchilarga yuborildi.');
+        sendStep = null;
+    } else if (sendStep === 'photo' && msg.photo && chatId === adminID) {
+        users.forEach(userId => bot.sendPhoto(userId, msg.photo[msg.photo.length - 1].file_id).catch(console.error));
+        bot.sendMessage(chatId, 'Photo foydalanuvchilarga yuborildi.');
+        sendStep = null;
+    } else if (sendStep === 'video' && msg.video && chatId === adminID) {
+        users.forEach(userId => bot.sendVideo(userId, msg.video.file_id).catch(console.error));
+        bot.sendMessage(chatId, 'Video foydalanuvchilarga yuborildi.');
+        sendStep = null;
+    }
+});
+
+// Start send sequence with /send command
+bot.onText(/\/send/, (msg) => {
+    const chatId = msg.chat.id;
+
+    if (chatId === adminID) {
+        bot.sendMessage(chatId, 'Message formatini tanlang:', {
+            reply_markup: {
+                inline_keyboard: [
+                    [{ text: 'Text', callback_data: 'text' }],
+                    [{ text: 'Picture', callback_data: 'photo' }],
+                    [{ text: 'Video', callback_data: 'video' }]
+                ]
+            }
+        });
+    } else {
+        bot.sendMessage(chatId, `Bu buyruqni ishlatish uchun bot admini bo'lishingiz kerak`);
+    }
+});
+
+// Handle the choice and set the step
+bot.on('callback_query', (callbackQuery) => {
+    const chatId = callbackQuery.message.chat.id;
+
+    if (chatId === adminID) {
+        sendStep = callbackQuery.data;
+        bot.sendMessage(chatId, `OK, send the ${sendStep}.`);
+        bot.answerCallbackQuery(callbackQuery.id);
+    }
+});
 
 
+//    get all users 
+const usersFile2 = './usersData.json';
 
+// Load or create the users list
+let users2 = [];
+if (fs.existsSync(usersFile2)) {
+    users2 = JSON.parse(fs.readFileSync(usersFile2, 'utf8'));
+}
+
+// Save users list to file
+function saveUsers() {
+    fs.writeFileSync(usersFile2, JSON.stringify(users2, null, 2));
+}
+
+// Listen for any message to add the user ID, username, and name to the list
+bot.on('message', (msg) => {
+    const chatId = msg.chat.id;
+    const userInfo = {
+        id: chatId,
+        username: msg.from.username || "No username",
+        name: `${msg.from.first_name || ""} ${msg.from.last_name || ""}`.trim()
+    };
+
+    if (!users2.some(user => user.id === chatId)) {
+        users2.push(userInfo);
+        saveUsers();
+    }
+});
+
+// Command to generate and send user list as a .txt file
+bot.onText(/\/users/, (msg) => {
+    const chatId = msg.chat.id;
+
+    if (chatId === adminID) {
+        // Create the .txt file content with user count
+        let userList = `Total Users: ${users2.length}\n\nUser List:\n\n`;
+        users2.forEach(user => {
+            userList += `Name: ${user.name}\nUsername: ${user.username}\nUser ID: ${user.id}\n\n`;
+        });
+
+        // Define file path
+        const filePath = path.join(__dirname, 'user_list.txt');
+        
+        // Write to the file
+        fs.writeFileSync(filePath, userList);
+
+        // Send the file to the admin
+        bot.sendDocument(adminID, filePath, {}, { contentType: 'text/plain' }).catch(error => console.error(error));
+    } else {
+        bot.sendMessage(chatId, 'You are not authorized to use this command.');
+    }
+});
 console.log('Assalamu alaykum...');
+
+
